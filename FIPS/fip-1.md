@@ -11,7 +11,7 @@ created: 2025-05-21
 
 ## Abstract
 
-This FIP proposes a comprehensive overhaul of the Facet protocol’s native gas token, Facet Compute Token (FCT). The changes (1) derive a deterministic total‑supply cap via an issuance‑based halving schedule, (2) replace the 10,000‑block “stair‑step” rate adjustment with a dual‑threshold system that recalibrates the moment either the block limit *or* the issuance target is hit, and (3) mint FCT in proportion to ETH burned for calldata, not raw gas units. Together, these measures aim to deliver predictable dilution, minimise issuance swings, and insulate mint costs from exogenous gas‑price spikes.
+This FIP proposes a comprehensive overhaul of the Facet protocol's native gas token, Facet Compute Token (FCT). The changes (1) derive a deterministic total‑supply cap via an issuance‑based halving schedule, (2) replace the 10,000‑block "stair‑step" rate adjustment with a dual‑threshold system that recalibrates the moment either the block limit *or* the issuance target is hit, moving from 10,000-block to 1,000-block periods, and (3) mint FCT in proportion to ETH burned for calldata, not raw gas units. Together, these measures aim to deliver predictable dilution, minimise issuance swings, and insulate mint costs from exogenous gas‑price spikes.
 
 ## Motivation
 
@@ -19,8 +19,8 @@ This FIP proposes a comprehensive overhaul of the Facet protocol’s native gas 
 
 For context, a review of how FCT works today: FCT issuance is controlled by a dynamic rate adjustment mechanism that operates in 10,000-block periods (approximately 1.4 days). Here's how it works:
 
-- The system targets 400,000 FCT per adjustment period  
-- Every period, the issuance rate adjusts based on how much FCT was minted in the previous period  
+- The system targets 400,000 FCT per 10,000-block adjustment period  
+- Every 10,000-block period, the issuance rate adjusts based on how much FCT was minted in the previous period  
 - If more than the target amount was minted, the rate decreases proportionally (up to a maximum change of 50%)  
 - The target issuance rate halves every year to ensure a fixed total supply  
 - The amount of FCT minted per transaction is based on the gas used for calldata, multiplied by the current issuance rate
@@ -33,11 +33,11 @@ The current time‑based halving calendar makes it impossible to know the maximu
 
 #### 2\. Delayed Rate Response and Resulting Issuance Instability
 
-The current scheme updates the mint rate only after each fixed 10,000‑block window. Demand spikes within a window therefore enjoy an outdated rate until the window closes.
+The current scheme updates the mint rate only after each fixed 10,000‑block window. Demand spikes within a window therefore enjoy an outdated rate until the window closes. This FIP addresses this by moving to 1,000-block periods and implementing dual-threshold adjustments.
 
 #### 3\. Gas Price‑Driven Volatility in Minting Costs
 
-Basing FCT output on data‑gas units exposes users to raw gas‑price swings. A single transaction’s mint could vary by an order of magnitude solely because of L1 network congestion, complicating economic planning.
+Basing FCT output on data‑gas units exposes users to raw gas‑price swings. A single transaction's mint could vary by an order of magnitude solely because of L1 network congestion, complicating economic planning.
 
 ### Specification
 
@@ -77,17 +77,17 @@ Yearly halvings imply 50% of the token will be issued after the first year. To s
 
 #### Adjusted Per-Period Target Calculation
 
-To ensure the first halving occurs as close to the original yearly goal as possible, we adjust the per-10,000-block period issuance targets such that hitting the targets will result in 50% of the Total Supply being issued by the first halving target block height (2,628,000).
+To ensure the first halving occurs as close to the original yearly goal as possible, we adjust the per-1,000-block period issuance targets such that hitting the targets will result in 50% of the Total Supply being issued by the first halving target block height (2,628,000).
 
 * **Calculation:**  
   * Target FCT to mint by first halving \= `Inferred Total Supply` \* 0.50.  
-  * Total number of 10k-block periods until first halving target \= `T_halving_blocks` / 10,000.  
+  * Total number of 1k-block periods until first halving target \= `T_halving_blocks` / 1,000.  
   * **Initial Target FCT Issuance Per Period \= (`Target FCT to mint by first halving`) / (`Total number of periods until first halving target`)**  
 * **Example:**  
   * Using values from previous example (`Inferred Total Supply` \= 622M FCT, `T_halving_blocks` \= 2,628,000):  
   * Target FCT by first halving \= 622,000,000 \* 0.50 \= 311,000,000 FCT.  
-  * Total number of periods \= 2,628,000 / 10,000 \= 262.8.  
-  * **Initial Target FCT Issuance Per Period \= 311,000,000 / 262.8 ≈ 1,183,409 FCT**.
+  * Total number of periods \= 2,628,000 / 1,000 \= 2,628.  
+  * **Initial Target FCT Issuance Per Period \= 311,000,000 / 2,628 ≈ 118,341 FCT**.
 
 #### Issuance Period Adjustments
 
@@ -95,10 +95,10 @@ To ensure the first halving occurs as close to the original yearly goal as possi
 
 After this FIP, each period ends when **either** of these triggers is reached:
 
-1. **10,000 blocks** pass, **or**  
-2. The **Target FCT Issuance Per Period** (as adjusted by halvings) is fully minted within that period. In our example above this value is 1,183,409 FCT.
+1. **1,000 blocks** pass (changed from 10,000 blocks), **or**  
+2. The **Target FCT Issuance Per Period** (as adjusted by halvings) is fully minted within that period. In our example above this value is 118,341 FCT.
 
-For example, if the current target is 1,000,000 FCT per period, and you reach that 1,000,000 minted at block 8,000 of the period, the period ends immediately—no need to wait for 10,000 blocks.
+For example, if the current target is 100,000 FCT per period, and you reach that 100,000 minted at block 800 of the period, the period ends immediately—no need to wait for 1,000 blocks.
 
 ##### Rate Adjustment Rule
 
@@ -112,61 +112,61 @@ Let:
 
 Depending on which trigger ends the period, the new rate is calculated as follows:
 
-##### 1\. If 10,000 Blocks Hit First (Under-issuance)
+##### 1\. If 1,000 Blocks Hit First (Under-issuance)
 
-If the period times out at 10,000 blocks before hitting the target, we minted fewer FCT than intended (`minted < target`). The system **increases** the issuance rate for the next period.
+If the period times out at 1,000 blocks before hitting the target, we minted fewer FCT than intended (`minted < target`). The system **increases** the issuance rate for the next period.
 
 ```
 newRate = oldRate * (target / minted), capped at 2 * oldRate
 ```
 
-This ensures a proportional “catch-up,” but never more than doubling in one step. If `minted == 0` newRate is `2 * oldRate`.
+This ensures a proportional "catch-up," but never more than doubling in one step. If `minted == 0` newRate is `2 * oldRate`.
 
 ##### 2\. If the Target Is Minted First (Over-issuance)
 
-If the entire per-period target was minted in fewer than 10,000 blocks, we minted faster than intended (`minted = target, blockCount < 10,000`). The system **decreases** the issuance rate for the next period.
+If the entire per-period target was minted in fewer than 1,000 blocks, we minted faster than intended (`minted = target, blockCount < 1,000`). The system **decreases** the issuance rate for the next period.
 
 ```
-newRate = oldRate * (blockCount / 10,000), capped at 0.5 * oldRate
+newRate = oldRate * (blockCount / 1,000), capped at 0.5 * oldRate
 ```
 
-This slows the next period’s minting speed proportionally, but never by more than 50% in a single step.
+This slows the next period's minting speed proportionally, but never by more than 50% in a single step.
 
 Finally, there is a global minimum rate of `2**128 - 1` and a global maximum rate of `1`.
 
 ##### Example Scenarios
 
-Assume a current target of **1,522,070 FCT** per period and a current **oldRate** of X.
+Assume a current target of **152,207 FCT** per period and a current **oldRate** of X.
 
 1. **Under-issuance (Severe)**  
      
-   - 10,000 blocks pass. Only 761,035 FCT minted (exactly half the target).  
-   - target / minted \= 1,522,070 / 761,035 ≈ 2.0.  
+   - 1,000 blocks pass. Only 76,104 FCT minted (exactly half the target).  
+   - target / minted \= 152,207 / 76,104 ≈ 2.0.  
    - newRate \= oldRate × 2.0, capped at 2.0 → newRate \= 2 × oldRate.
 
    
 
 2. **Under-issuance (Partial)**  
      
-   - 10,000 blocks pass. 1,300,000 FCT minted (85% of the target).  
-   - target / minted \= 1,522,070 / 1,300,000 ≈ 1.17.  
+   - 1,000 blocks pass. 130,000 FCT minted (85% of the target).  
+   - target / minted \= 152,207 / 130,000 ≈ 1.17.  
    - newRate \= oldRate × 1.17 (since 1.17 \< 2, no cap needed).
 
    
 
 3. **Over-issuance (Moderate)**  
      
-   - 1,522,070 FCT minted in 9,000 blocks (1,000 blocks short of 10k).  
-   - blockCount / 10,000 \= 9,000 / 10,000 \= 0.9.  
+   - 152,207 FCT minted in 900 blocks (100 blocks short of 1k).  
+   - blockCount / 1,000 \= 900 / 1,000 \= 0.9.  
    - newRate \= oldRate × 0.9 (since 0.9 \> 0.5, no cap needed).
 
    
 
 4. **Over-issuance (Severe)**  
      
-   - 1,522,070 FCT minted in only 1,000 blocks.  
-   - blockCount / 10,000 \= 1,000 / 10,000 \= 0.1.  
-   - newRate would be oldRate × 0.1, but that’s below the 0.5× cap. So newRate is forced to oldRate × 0.5.
+   - 152,207 FCT minted in only 100 blocks.  
+   - blockCount / 1,000 \= 100 / 1,000 \= 0.1.  
+   - newRate would be oldRate × 0.1, but that's below the 0.5× cap. So newRate is forced to oldRate × 0.5.
 
 #### Minting Mechanism
 
