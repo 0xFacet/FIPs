@@ -132,7 +132,7 @@ newRate = oldRate * (blockCount / 1,000), capped at 0.5 * oldRate
 
 This slows the next period's minting speed proportionally, but never by more than 50% in a single step.
 
-Finally, there is a global minimum rate of `2**128 - 1` and a global maximum rate of `1`.
+Finally, there is a global max rate of `2**128 - 1` and a global min rate of `1`.
 
 ##### Example Scenarios
 
